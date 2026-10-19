@@ -18,6 +18,10 @@ h1{font-size:22px;font-weight:600;margin:0 0 4px}
 .chartbox{position:relative;height:520px}
 .lg{display:flex;flex-direction:column;gap:2px;font-size:14px}
 .lg .hd{font-size:12px;color:var(--mute);margin:0 0 4px 8px}
+.seg{display:grid;grid-template-columns:repeat(4,1fr);gap:2px;background:var(--hover);border-radius:8px;padding:2px;margin:0 0 8px}
+.seg button{border:0;background:none;font:inherit;font-size:12px;color:var(--ink2);padding:6px 2px;border-radius:6px;cursor:pointer;white-space:nowrap}
+.seg button:hover{color:var(--ink)}
+.seg button.on{background:var(--surface);color:var(--ink);font-weight:600;box-shadow:0 0 0 1px var(--border)}
 .row{display:flex;align-items:center;gap:8px;padding:6px 8px;border-radius:8px;color:var(--ink2);cursor:pointer;border:0;background:none;font:inherit;text-align:left;width:100%}
 .row:hover,.row:focus-visible{background:var(--hover);outline:none}
 .row.on{background:var(--hover);color:var(--ink);font-weight:600}
@@ -65,7 +69,7 @@ td.top{color:var(--hi);font-weight:600}
 </div>
 <div class="chartbox"><canvas id="c" role="img" aria-label="台股基金前十名與0050、加權指數自2020年起的累積報酬折線圖"></canvas></div>
 </div>
-<div class="lg" id="lg"><div class="hd">名次 · 累積報酬</div></div>
+<div class="lg" id="lg"><div class="seg" id="seg" role="tablist" aria-label="排序方式"><button type="button" data-k="c">年化報酬</button><button type="button" data-k="m">最大回撤</button><button type="button" data-k="s">Sharpe</button><button type="button" data-k="a">Alpha</button></div><div class="hd" id="hd">名次 · 年化報酬</div></div>
 </div>
 <div class="foot">基金為累積型淨值(等同含息總報酬)；0050 為含息還原價；加權指數不含息。資料來源：鉅亨網基金淨值、Yahoo Finance。週資料繪製。</div>
 </div>
@@ -108,8 +112,15 @@ const fmt=v=>(v>=0?'+':'')+Math.round(v).toLocaleString()+'%';
 let sel=0;
 const lg=document.getElementById('lg');
 const rows=F.map((f,i)=>{const b=document.createElement('button');b.className='row';b.type='button';
-b.innerHTML=`<span class="rk">${i+1}</span><span class="sw"></span><span>${f.n}</span><span class="vl">${fmt(f.r)}</span>`;
+b.innerHTML=`<span class="rk">${i+1}</span><span class="sw"></span><span>${f.n}</span><span class="vl"></span>`;
 b.addEventListener('click',()=>pick(i));b.addEventListener('mouseenter',()=>pick(i));b.addEventListener('focus',()=>pick(i));lg.appendChild(b);return b});
+const MET={c:{t:'年化報酬',f:v=>v.toFixed(1)+'%'},m:{t:'最大回撤(跌越少越前)',f:v=>v.toFixed(1)+'%'},s:{t:'Sharpe',f:v=>v.toFixed(2)},a:{t:'Alpha(年化)',f:v=>(v>=0?'+':'')+v.toFixed(1)+'%'}};
+let mk='c';
+function sortLg(k){mk=k;const ord=F.map((f,i)=>i).sort((x,y)=>F[y][k]-F[x][k]);
+ord.forEach((i,p)=>{rows[i].querySelector('.rk').textContent=p+1;rows[i].querySelector('.vl').textContent=MET[k].f(F[i][k]);lg.insertBefore(rows[i],sep)});
+document.getElementById('hd').textContent='名次 · '+MET[k].t;
+document.querySelectorAll('#seg button').forEach(b=>{const on=b.dataset.k===k;b.classList.toggle('on',on);b.setAttribute('aria-pressed',on)})}
+document.querySelectorAll('#seg button').forEach(b=>b.addEventListener('click',()=>sortLg(b.dataset.k)));
 const sep=document.createElement('div');sep.className='sep';lg.appendChild(sep);
 B.forEach((b,i)=>{const r=document.createElement('div');r.className='row bm';
 r.innerHTML=`<span class="rk"></span><span class="sw bmsw" data-i="${i}"></span><span>${b.n}</span><span class="vl">${fmt(b.v[b.v.length-1])}</span>`;lg.appendChild(r)});
@@ -127,7 +138,7 @@ callback:(v,i)=>(i>0&&D[i].slice(0,4)!==D[i-1].slice(0,4))?D[i].slice(0,4):null}
 y:{min:-100,afterBuildTicks:ax=>{ax.ticks=ax.ticks.filter(t=>t.value%200===0)},grid:{color:C['--grid']},border:{display:false},ticks:{color:C['--mute'],callback:v=>v.toLocaleString()+'%'}}}}});
 function pick(i){sel=i;ch.data.datasets.forEach((d,j)=>{if(j<F.length){d.borderColor=j===i?C['--hi']:C['--gray'];d.borderWidth=j===i?2.6:1;d.order=j===i?1:5}});ch.update();
 rows.forEach((r,j)=>{r.classList.toggle('on',j===i);r.querySelector('.sw').style.background=j===i?C['--hi']:C['--gray']});
-const f=F[i];document.getElementById('tn').textContent=(i+1)+'. '+f.n;document.getElementById('tr').textContent=fmt(f.r);
+const f=F[i];document.getElementById('tn').textContent=f.n;document.getElementById('tr').textContent=fmt(f.r);
 document.getElementById('tc').textContent=f.c.toFixed(1)+'%';document.getElementById('tm').textContent=f.m.toFixed(1)+'%';
 document.getElementById('ts').textContent=f.s.toFixed(2);document.getElementById('ta').textContent=(f.a>=0?'+':'')+f.a.toFixed(1)+'%'}
 const tb=document.querySelector('#tb tbody');let sk='sharpe',sd=-1;
@@ -141,7 +152,7 @@ renderT();
 function repaint(){loadC();paintBm();ch.options.scales.x.ticks.color=C['--mute'];ch.options.scales.y.ticks.color=C['--mute'];ch.options.scales.y.grid.color=C['--grid'];ch.options.scales.x.border.color=C['--grid'];
 ch.data.datasets.forEach((d,j)=>{if(j>=F.length)d.borderColor=C['--bench']});pick(sel)}
 matchMedia('(prefers-color-scheme: dark)').addEventListener('change',repaint);
-paintBm();pick(0);
+paintBm();sortLg('c');pick(0);
 </script>
 </body>
 </html>
